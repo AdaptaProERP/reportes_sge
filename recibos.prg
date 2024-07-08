@@ -12,7 +12,7 @@
 #include "DpxReport.ch"
 
 PROCE MAIN(oGenRep)
-     LOCAL cSql,oCursor,cMsg:="",oFont1,oFont2
+     LOCAL cSql,oCursor,cMsg:="",oFont1,oFont2,oDb
 
      PRIVATE oReport,nLineas:=0
 
@@ -41,7 +41,22 @@ PROCE MAIN(oGenRep)
      ENDIF
 
      // 05/07/2024
-     EJECUTAR("REPSELECTADDFIELD",oGenRep,",REC_MTOASG,REC_MTODED,REC_NETO ")
+     IF oDp:nVersion<=5.0 
+
+        SELECTADDFIELD(oGenRep,",REC_MTOASG,REC_MTODED,REC_NETO ")
+
+     ELSE
+
+        oDb:=OpenOdbc(oDp:cDsnData)
+
+        IF !EJECUTAR("ISFIELDMYSQL",oDb,"VIEW_NMRECIBOS","REC_CODTRA",.F.)
+          EJECUTAR("VIEW_NMRECIBOS")
+        ENDIF
+
+        EJECUTAR("REPSELECTADDFIELD",oGenRep,",REC_MTOASG,REC_MTODED,REC_NETO ")
+
+     ENDIF
+
      oGenRep:cSql:=STRTRAN(oGenRep:cSql,"NMRECIBOS","VIEW_NMRECIBOS")
 
      IF !oGenRep:OutPut(.T.) // Verifica el Dispositivo de Salida Inicial
@@ -236,5 +251,45 @@ FUNCTION ENDGRP02()
    cLines:=ltrim(str(oReport:aGroups[2]:nCounter))
    cLines:=" ("+cLines+")"
 RETURN cExp+uValue+cLines
+
+/*
+// JN 06/05/2024
+// Agregar campos en el Select
+*/
+
+FUNCTION SELECTADDFIELD(oGenRep,cField)
+   LOCAL nAt,cSelect
+
+
+   IF oGenRep=NIL
+
+     DEFAULT cSelect:="SELECT REC_NUMERO FROM NMRECIBOS",;
+             cField :="REC_MTOASG"
+
+   ELSE
+
+     cSelect:=oGenRep:cSqlSelect   
+
+   ENDIF
+
+   nAt    :=AT(" FROM ",cSelect)
+
+   cField :=IF(LEFT(cField,1)=",","",",")+cField
+
+   IF nAt>0
+     cSelect:=LEFT(cSelect,nAt)+cField+SUBS(cSelect,nAt,LEN(cSelect))
+   ENDIF
+
+   IF !oGenRep=NIL
+
+      oGenRep:cSqlSelect:=cSelect
+      oGenRep:BuildSql()
+
+   ENDIF
+
+RETURN cSelect
+// EOF
+
+
 
 // EOF 
